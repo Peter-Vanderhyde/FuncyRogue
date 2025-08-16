@@ -188,7 +188,7 @@ This document contains every idea and technical note for expanding the Funcy rog
 - [ ] Traps (spike, dart, gas); search action.
 
 ### Milestone C — Systems Polish (2–3 days)
-- [ ] Identification + curses.
+- [ ] Identification + curses. A scroll that reveals the exit tile.
 - [ ] Doors & keys; locked rooms with treasure.
 - [ ] Boss floor every 3 depths.
 

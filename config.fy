@@ -30,6 +30,11 @@ C_CAVES_WALL     = "\e[34m";  # dark blue (distinct from bright potion purple)
 C_CATACOMBS_WALL = "\e[37m";  # white (same as default)
 C_FORGE_WALL     = "\e[33m";  # orange-yellow
 
+# Terrain colors
+C_WATER          = "\e[36m";  # cyan for water tiles
+C_LAVA           = "\e[31m";  # red for lava tiles
+C_PILLAR         = "\e[90m";  # dark gray for pillars
+
 # Equipment
 MAX_RING_SLOTS = 2;
 ARMOR_BASE_REDUCTION = 0;

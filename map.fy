@@ -62,20 +62,60 @@ func getThemeForDepth(depth) {
 }
 
 func generateMap(depth) {
+    theme = getThemeForDepth(depth);
+    
+    # Declare all variables first
     ROOM_ATTEMPTS = 60;
     MIN_W = 4;  MAX_W = 10;
     MIN_H = 3;  MAX_H = 8;
     SEP_PAD = 1;
+    
+    # Theme-specific generation parameters
+    if theme == "caves" {
+        # Caves: cellular rooms (organic), lakes; slimes, bats; fewer doors
+        ROOM_ATTEMPTS = 80;  # More room attempts for organic feel
+        MIN_W = 3;  MAX_W = 12;  # More varied room sizes
+        MIN_H = 2;  MAX_H = 10;
+        SEP_PAD = 2;  # More spacing between rooms
+    } elif theme == "catacombs" {
+        # Catacombs: narrow rooms, long corridors; skeletons; more traps
+        ROOM_ATTEMPTS = 40;  # Fewer, more focused rooms
+        MIN_W = 3;  MAX_W = 8;   # Narrower rooms
+        MIN_H = 2;  MAX_H = 6;
+        SEP_PAD = 1;  # Tighter spacing
+    } elif theme == "forge" {
+        # Forge: lava pockets (fire damage), golems; weapon loot up
+        ROOM_ATTEMPTS = 50;  # Medium room count
+        MIN_W = 5;  MAX_W = 11;  # Larger rooms for forge feel
+        MIN_H = 4;  MAX_H = 9;
+        SEP_PAD = 1;  # Standard spacing
+    }
+    
+    
 
     grid = makeGrid("#");
     rooms = [];
+    
+    # Declare room dimension variables at function level
+    rw = 6;  # Default fallback values
+    rh = 4;
 
     attempts = 0;
     while attempts < ROOM_ATTEMPTS {
         attempts = attempts + 1;
 
-        rw = randInt(MIN_W, MAX_W);
-        rh = randInt(MIN_H, MAX_H);
+        # Ensure MIN values are always less than MAX values
+        if MIN_W >= MAX_W { MIN_W = MAX_W - 1; }
+        if MIN_H >= MAX_H { MIN_H = MAX_H - 1; }
+        
+                         # Safety check - ensure ranges are valid and set room dimensions
+                 if MIN_W < MAX_W and MIN_H < MAX_H {
+                     rw = randInt(MIN_W, MAX_W);
+                     rh = randInt(MIN_H, MAX_H);
+                 } else {
+                     # If ranges are invalid, rw and rh keep their default values
+                     continue;
+                 }
 
         rx = randInt(1, MAP_W - rw - 2);
         ry = randInt(1, MAP_H - rh - 2);
@@ -117,6 +157,62 @@ func generateMap(depth) {
     ex = exy[0]; ey = exy[1]; if not inBounds(ex, ey) { ex = MAP_W - 2; ey = MAP_H - 2; }
     carveCell(grid, ex, ey, ">");
 
+    # Add theme-specific terrain features
+    addThemeFeatures(grid, theme, rooms);
+    
     theme = getThemeForDepth(depth);
     return { "grid": grid, "rooms": rooms, "exit": [ex, ey], "player_start": [px, py], "theme": theme };
+}
+
+# Add theme-specific terrain features
+func addThemeFeatures(grid, theme, rooms) {
+    if theme == "caves" {
+        # Caves: Add some water/lake tiles
+        for i = 0, i < 3, i += 1 {
+            if length(rooms) > 0 {
+                room_idx = randInt(0, length(rooms) - 1);
+                room = rooms[room_idx];
+                # Safety check: ensure room is large enough for terrain placement
+                if room["w"] > 2 and room["h"] > 2 {
+                    cx = room["x"] + randInt(1, room["w"] - 2);
+                    cy = room["y"] + randInt(1, room["h"] - 2);
+                    if inBounds(cx, cy) and grid[cy][cx] == "." {
+                        grid[cy][cx] = "~";  # Water tile
+                    }
+                }
+            }
+        }
+    } elif theme == "catacombs" {
+        # Catacombs: Add some pillars/obstacles
+        for i = 0, i < 4, i += 1 {
+            if length(rooms) > 0 {
+                room_idx = randInt(0, length(rooms) - 1);
+                room = rooms[room_idx];
+                # Safety check: ensure room is large enough for terrain placement
+                if room["w"] > 2 and room["h"] > 2 {
+                    cx = room["x"] + randInt(1, room["w"] - 2);
+                    cy = room["y"] + randInt(1, room["h"] - 2);
+                    if inBounds(cx, cy) and grid[cy][cx] == "." {
+                        grid[cy][cx] = "|";  # Pillar
+                    }
+                }
+            }
+        }
+    } elif theme == "forge" {
+        # Forge: Add some lava pockets
+        for i = 0, i < 2, i += 1 {
+            if length(rooms) > 0 {
+                room_idx = randInt(0, length(rooms) - 1);
+                room = rooms[room_idx];
+                # Safety check: ensure room is large enough for terrain placement
+                if room["w"] > 2 and room["h"] > 2 {
+                    cx = room["x"] + randInt(1, room["w"] - 2);
+                    cy = room["y"] + randInt(1, room["h"] - 2);
+                    if inBounds(cx, cy) and grid[cy][cx] == "." {
+                        grid[cy][cx] = "~";  # Lava tile (red ~ symbol)
+                    }
+                }
+            }
+        }
+    }
 }

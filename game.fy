@@ -9,6 +9,12 @@ func delayMs(ms) {
     while time() - start < ms { }   # simple, portable
 }
 
+# Utility function to choose a random element from a list
+func randChoice(list) {
+    if length(list) == 0 { return Null; }
+    return list[randInt(0, length(list) - 1)];
+}
+
 class Game {
     func &Game() {
         &grid = [];
@@ -194,6 +200,13 @@ class Game {
         if ch == ")" { return C_WEAPON+ ")" + C_RESET; }
         if ch == "[" { return C_WEAPON+ "[" + C_RESET; }  # reuse cyan for armor
         if ch == "=" { return C_POTION+ "=" + C_RESET; }  # reuse magenta for ring
+        # Theme-specific terrain
+        if ch == "~" { 
+            # Water in caves, lava in forge
+            if &theme == "forge" { return C_LAVA + "~" + C_RESET; }   # red ~ for lava
+            else { return C_WATER + "~" + C_RESET; }                   # cyan ~ for water
+        }
+        if ch == "|" { return C_PILLAR + "|" + C_RESET; } # pillar
         # Monster letters (unique per type)
         if ch == "M" or ch == "R" or ch == "B" or ch == "s" or ch == "G" or ch == "S" {
             return C_MON + ch + C_RESET;
@@ -205,7 +218,34 @@ class Game {
     func &passable(x, y) {
         if not inBounds(x, y) { return false; }
         tile = &grid[y][x];
-        return tile == "." or tile == ">";
+        # Basic passable tiles
+        if tile == "." or tile == ">" { return true; }
+        # Theme-specific passable tiles
+        if tile == "~" { 
+            # Water is passable, lava is not
+            if &theme == "forge" { return false; }  # Lava in forge is not passable
+            else { return true; }                    # Water in other themes is passable
+        }
+        if tile == "|" { return false; } # Pillars are not passable
+        return false;
+    }
+    
+    # Check for special terrain effects when player is on them
+    func &checkTerrainEffects(x, y) {
+        tile = &grid[y][x];
+        if tile == "~" {
+            # Water vs lava based on theme
+            if &theme == "forge" {
+                # Lava: should not be passable, this is a safety check
+                &message = "The lava burns you!";
+            } else {
+                # Water: passable but slows movement
+                &message = "You wade through the water.";
+            }
+        } elif tile == "|" {
+            # Pillar: blocking obstacle
+            &message = "You cannot pass through the pillar.";
+        }
     }
 
     func &monsterAt(x, y) {
@@ -529,6 +569,7 @@ class Game {
         } else {
             &message = "You hit the " + m.name + " for " + str(dmg) + ".";
             &monsterTurn();
+            # The monster's attack message will now be added to the existing message
         }
     }
 
@@ -770,7 +811,12 @@ class Game {
                 if dmg < 1 { dmg = 1; }
 
                 &player.hp = &player.hp - dmg;
-                &message = "The " + m.name + " hits you for " + str(dmg) + "!";
+                # Append monster attack to existing message instead of overwriting
+                if &message == "" {
+                    &message = "The " + m.name + " hits you for " + str(dmg) + "!";
+                } else {
+                    &message = &message + " The " + m.name + " hits you for " + str(dmg) + "!";
+                }
                 if &player.hp <= 0 {
                     &dead = true;
                     return;
@@ -829,11 +875,27 @@ class Game {
                 &buildLevel(&player.depth + 1);   # no healing between levels
                 return;
             }
-            &message = "";
             &monsterTurn();
+            # Check terrain effects after monster turn (so they don't get overwritten)
+            &checkTerrainEffects(&player.x, &player.y);
             return;
         } else {
-            &message = "A wall blocks your way.";
+            # Give specific messages for different terrain types
+            tile = &grid[ny][nx];
+            if tile == "~" {
+                # Water vs lava based on theme
+                if &theme == "forge" {
+                    &message = "The lava blocks your way.";
+                } else {
+                    &message = "The water blocks your way.";
+                }
+            } elif tile == "|" {
+                &message = "A pillar blocks your way.";
+            } elif tile == "#" {
+                &message = "A wall blocks your way.";
+            } else {
+                &message = "Something blocks your way.";
+            }
         }
     }
 

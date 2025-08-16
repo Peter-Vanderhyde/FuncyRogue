@@ -22,6 +22,7 @@ func main() {
     while true {
         g.render();
         cmd = input("[WASD]=move  f=pick  i=inv  r=stats  t=talk  v=toggle-fov  n=next  q=quit > ").strip();
+        g.message = ""; # Clear message after each input
         key = "";
         if length(cmd) > 0 { key = cmd[0]; }
 
