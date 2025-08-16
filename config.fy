@@ -32,6 +32,7 @@ C_RED      = "\e[91m";  # Red for depth
 C_YELLOW   = "\e[93m";  # Yellow for gold
 C_LIGHT_BLUE = "\e[94m";  # Light blue for level
 
+
 # Theme colors
 C_CAVES_WALL     = "\e[34m";  # dark blue (distinct from bright potion purple)
 C_CATACOMBS_WALL = "\e[37m";  # white (same as default)

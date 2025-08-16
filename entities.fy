@@ -1,5 +1,11 @@
 # entities.fy — game entities and abilities
 
+# Utility function to choose a random element from a list
+func randChoice(list) {
+    if length(list) == 0 { return Null; }
+    return list[randInt(0, length(list) - 1)];
+}
+
 class Player {
     func &Player(x, y) {
         &x = x; &y = y;
@@ -74,6 +80,8 @@ class Player {
     func &totalDef() {
         return ARMOR_BASE_REDUCTION + &armorDef() + &ringDef() + &perk_def_bonus;
     }
+    
+
 
     func &xpThresholdFor(lv) {
         return LEVEL_XP_BASE + (lv - 1) * LEVEL_XP_SCALE;
@@ -102,6 +110,7 @@ class Player {
              + C_RED + "  HP " + str(&hp) + "/" + str(&hp_max)
              + C_GREEN + "  ATK " + str(atk_total)
              + "  DEF " + str(def_total)
+
              + C_YELLOW + "  GOLD " + str(&gold)
              + C_GREEN + "  Wpn:[" + w + "] Arm:[" + a + "] Rings:[" + r0 + C_GREEN + "," + r1 + C_GREEN + "]  Depth " + str(&depth);
     }
@@ -260,5 +269,143 @@ class DisguiseAbility {
         &name = "Disguise";
         &description = "Disguises as " + disguise_as;
         &disguise_as = disguise_as;
+    }
+}
+
+# Summon ability for necromancers
+class SummonAbility {
+    func &SummonAbility(monster_type, max_summons) {
+        &type = "summon";
+        &name = "Summon";
+        &description = "Summons " + monster_type + " (max " + str(max_summons) + ")";
+        &monster_type = monster_type;
+        &max_summons = max_summons;
+        &summon_count = 0;
+    }
+    
+    func &canSummon() { return &summon_count < &max_summons; }
+    
+    func &incrementSummon() { &summon_count = &summon_count + 1; }
+}
+
+# Armor ability for golems
+class ArmorAbility {
+    func &ArmorAbility(armor_value) {
+        &type = "armor";
+        &name = "Armor";
+        &description = "Reduces incoming damage by " + str(armor_value);
+        &armor_value = armor_value;
+    }
+}
+
+
+
+# Theme-specific monster definitions
+func createCatacombsMonster(x, y, depth) {
+    monster_type = randInt(1, 4);
+    if monster_type == 1 {
+        # Skeleton - basic undead
+        hp = 4 + depth;
+        atk = 2 + (depth // 2);
+        monster = Monster("Skeleton", x, y, hp, atk);
+        monster.glyph = "S";
+        return monster;
+    } elif monster_type == 2 {
+        # Zombie - slow but tough
+        hp = 6 + depth;
+        atk = 1 + (depth // 3);
+        monster = Monster("Zombie", x, y, hp, atk);
+        monster.glyph = "Z";
+        return monster;
+    } elif monster_type == 3 {
+        # Necromancer - can summon skeletons
+        hp = 3 + depth;
+        atk = 2 + (depth // 2);
+        monster = Monster("Necromancer", x, y, hp, atk);
+        monster.glyph = "N";
+        summon_ability = SummonAbility("Skeleton", 2);
+        monster.addAbility(summon_ability);
+        return monster;
+    } else {
+        # Wraith - fast but weak
+        hp = 2 + depth;
+        atk = 3 + (depth // 2);
+        monster = Monster("Wraith", x, y, hp, atk);
+        monster.glyph = "W";
+        return monster;
+    }
+}
+
+func createCavesMonster(x, y, depth) {
+    monster_type = randInt(1, 4);
+    if monster_type == 1 {
+        # Slime - splits when killed
+        hp = 3 + depth;
+        atk = 1 + (depth // 3);
+        monster = Monster("Slime", x, y, hp, atk);
+        monster.glyph = "s";
+        split_ability = SplitAbility(2);
+        monster.addAbility(split_ability);
+        return monster;
+    } elif monster_type == 2 {
+        # Bat - fast and ranged
+        hp = 2 + depth;
+        atk = 1 + (depth // 2);
+        monster = Monster("Bat", x, y, hp, atk);
+        monster.glyph = "B";
+        ranged_ability = RangedAbility(3);
+        monster.addAbility(ranged_ability);
+        return monster;
+    } elif monster_type == 3 {
+        # Cave Spider - web ability
+        hp = 4 + depth;
+        atk = 2 + (depth // 2);
+        monster = Monster("Cave Spider", x, y, hp, atk);
+        monster.glyph = "S";
+        return monster;
+    } else {
+        # Cave Dweller - basic
+        hp = 3 + depth;
+        atk = 2 + (depth // 2);
+        monster = Monster("Cave Dweller", x, y, hp, atk);
+        monster.glyph = "D";
+        return monster;
+    }
+}
+
+func createForgeMonster(x, y, depth) {
+    monster_type = randInt(1, 4);
+    if monster_type == 1 {
+        # Golem - high armor, slow
+        hp = 8 + depth;
+        atk = 2 + (depth // 2);
+        monster = Monster("Golem", x, y, hp, atk);
+        monster.glyph = "G";
+        armor_ability = ArmorAbility(2);
+        monster.addAbility(armor_ability);
+        return monster;
+    } elif monster_type == 2 {
+        # Fire Elemental - ranged fire attack
+        hp = 3 + depth;
+        atk = 3 + (depth // 2);
+        monster = Monster("Fire Elemental", x, y, hp, atk);
+        monster.glyph = "F";
+        ranged_ability = RangedAbility(4);
+        monster.addAbility(ranged_ability);
+        return monster;
+    } elif monster_type == 3 {
+        # Forge Worker - basic but tough
+        hp = 5 + depth;
+        atk = 2 + (depth // 2);
+        monster = Monster("Forge Worker", x, y, hp, atk);
+        monster.glyph = "W";
+        return monster;
+    } else {
+        # Lava Spawn - fire damage
+        hp = 4 + depth;
+        atk = 2 + (depth // 2);
+        monster = Monster("Lava Spawn", x, y, hp, atk);
+        monster.glyph = "L";
+        return monster;
     }
 }

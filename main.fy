@@ -33,6 +33,7 @@ func main() {
         if key == "i" or key == "I" { g.useInventory(); continue; }
         if key == "r" or key == "R" { g.showStats(); continue; }
         if key == "f" or key == "F" { g.pickup(); continue; }
+
         if key == "t" or key == "T" { g.talkToTrader(); continue; }
         if key == "v" or key == "V" {
             g.fov_enabled = not g.fov_enabled;

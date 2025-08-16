@@ -15,6 +15,12 @@ func randChoice(list) {
     return list[randInt(0, length(list) - 1)];
 }
 
+# Utility function to get maximum of two values
+func max(a, b) {
+    if a > b { return a; }
+    return b;
+}
+
 class Game {
     func &Game() {
         &grid = [];
@@ -207,7 +213,7 @@ class Game {
         }
         if ch == "|" { return C_PILLAR + "|" + C_RESET; } # pillar
         # Monster letters (unique per type)
-        if ch == "M" or ch == "R" or ch == "B" or ch == "s" or ch == "G" or ch == "S" {
+        if ch == "M" or ch == "R" or ch == "B" or ch == "s" or ch == "G" or ch == "S" or ch == "Z" or ch == "N" or ch == "W" or ch == "D" or ch == "C" or ch == "F" or ch == "L" {
             return C_MON + ch + C_RESET;
         }
         if ch == "T" { return C_TRADER + "T" + C_RESET; }
@@ -235,23 +241,23 @@ class Game {
         return false;
     }
     
-    # Check for special terrain effects when player is on them
-    func &checkTerrainEffects(x, y) {
-        tile = &grid[y][x];
-        if tile == "~" {
-            # Water vs lava based on theme
-            if &theme == "forge" {
-                # Lava: should not be passable, this is a safety check
-                &message = "The lava burns you!";
-            } else {
-                # Water: passable but slows movement
-                &message = "You wade through the water.";
+            # Check for special terrain effects when player is on them
+        func &checkTerrainEffects(x, y) {
+            tile = &grid[y][x];
+            if tile == "~" {
+                # Water vs lava based on theme
+                if &theme == "forge" {
+                    # Lava: should not be passable, this is a safety check
+                    &message = "The lava burns you!";
+                } else {
+                    # Water: passable but slows movement
+                    &message = "You wade through the water.";
+                }
+            } elif tile == "|" {
+                # Pillar: blocking obstacle
+                &message = "You cannot pass through the pillar.";
             }
-        } elif tile == "|" {
-            # Pillar: blocking obstacle
-            &message = "You cannot pass through the pillar.";
         }
-    }
 
     func &monsterAt(x, y) {
         for i = 0, i < length(&monsters), i += 1 {
@@ -317,20 +323,23 @@ class Game {
 
     func &onLevelUp() {
         print("\n== Level Up! You are now level " + str(&player.level) + " ==");
+        
         options = [
             "Vitality (+2 Max HP, heal 2)",
             "Power (+1 Base ATK)",
             "Guard (+1 DEF)"
         ];
+        
         for i = 0, i < length(options), i += 1 {
             print("  [" + str(i + 1) + "] " + options[i]);
         }
+        
         choice = -1;
         while true {
-            inp = input("Choose a perk (1-3): ").strip();
-            if not inp.isDigit() { print("Please enter 1, 2, or 3."); continue; }
+            inp = input("Choose a perk (1-" + str(length(options)) + "): ").strip();
+            if not inp.isDigit() { print("Please enter 1-" + str(length(options)) + "."); continue; }
             choice1 = int(inp);
-            if choice1 >= 1 and choice1 <= 3 { choice = choice1 - 1; break; }
+            if choice1 >= 1 and choice1 <= length(options) { choice = choice1 - 1; break; }
             print("Invalid choice.");
         }
 
@@ -342,10 +351,11 @@ class Game {
         } elif choice == 1 {
             &player.atk = &player.atk + 1;
             print("Your strikes hit harder. Base ATK +1.");
-        } else {
+        } elif choice == 2 {
             &player.perk_def_bonus = &player.perk_def_bonus + 1;
             print("You brace yourself better. DEF +1.");
         }
+        
         _ = input("(press Enter) ");
     }
 
@@ -501,11 +511,25 @@ class Game {
                and not (&player.x == rx and &player.y == ry)
                and not (rx == exitX and ry == exitY)
                and not &monsterAt(rx, ry) {
-                base = 3 + (&player.depth - 1);
-                hp = randInt(base, base + 4);
-                atk = randInt(1 + (&player.depth // 2), 2 + (&player.depth // 2));
-                names = ["Rat", "Bat", "Slime", "Goblin", "Spider"];
-                m = Monster(randChoice(names), rx, ry, hp, atk);
+                
+                # Declare monster variable at function level
+                m = Null;
+                
+                # Create theme-specific monsters
+                if &theme == "catacombs" {
+                    m = createCatacombsMonster(rx, ry, &player.depth);
+                } elif &theme == "caves" {
+                    m = createCavesMonster(rx, ry, &player.depth);
+                } elif &theme == "forge" {
+                    m = createForgeMonster(rx, ry, &player.depth);
+                } else {
+                    # Fallback to generic monsters
+                    base = 3 + (&player.depth - 1);
+                    hp = randInt(base, base + 4);
+                    atk = randInt(1 + (&player.depth // 2), 2 + (&player.depth // 2));
+                    names = ["Rat", "Bat", "Slime", "Goblin", "Spider"];
+                    m = Monster(randChoice(names), rx, ry, hp, atk);
+                }
                 &monsters.append(m);
             }
         }
@@ -524,23 +548,62 @@ class Game {
                 roll = randInt(0, 9);  # 0..9
                 itm = Null;
                 glyph = "!";
+                
+                # Declare variables at function level
+                heal = 0;
+                pwr = 0;
+                defv = 0;
+                potion_names = ["Red Potion"];  # Default potion names
+                wnames = ["Dagger", "Shortsword", "Club"];  # Default weapon names
+                anames = ["Cloth Armor", "Leather Armor", "Chain Shirt"];  # Default armor names
 
                 if roll < 3 {
                     heal = randInt(5, 10);
                     
+                    # Theme-specific potion names
+                    if &theme == "catacombs" {
+                        potion_names = ["Red Potion", "Blood Elixir", "Vitality Draught"];
+                    } elif &theme == "caves" {
+                        potion_names = ["Red Potion", "Cave Dew", "Mineral Water"];
+                    } elif &theme == "forge" {
+                        potion_names = ["Red Potion", "Molten Essence", "Fire Brew"];
+                    } else {
+                        potion_names = ["Red Potion"];
+                    }
+                    
                     # Fortune ring bonus: chance to improve potion healing
-                    itm = &applyLuckRingBonus(Item("Red Potion", "potion", heal));
+                    itm = &applyLuckRingBonus(Item(randChoice(potion_names), "potion", heal));
                     glyph = "!";
                 } elif roll < 6 {
                     pwr = randInt(1, 3);
                     
-                    wnames = ["Dagger", "Shortsword", "Club"];
+                    # Theme-specific weapon names
+                    if &theme == "catacombs" {
+                        wnames = ["Dagger", "Bone Sword", "Necrotic Blade"];
+                    } elif &theme == "caves" {
+                        wnames = ["Dagger", "Stone Club", "Crystal Shard"];
+                    } elif &theme == "forge" {
+                        wnames = ["Dagger", "Iron Sword", "Molten Axe"];
+                    } else {
+                        wnames = ["Dagger", "Shortsword", "Club"];
+                    }
+                    
                     itm = &applyLuckRingBonus(Item(randChoice(wnames), "weapon", pwr));
                     glyph = ")";
                 } elif roll < 8 {
                     defv = randInt(1, 2);
                     
-                    anames = ["Cloth Armor", "Leather Armor", "Chain Shirt"];
+                    # Theme-specific armor names
+                    if &theme == "catacombs" {
+                        anames = ["Cloth Armor", "Bone Mail", "Necrotic Robes"];
+                    } elif &theme == "caves" {
+                        anames = ["Cloth Armor", "Stone Armor", "Crystal Shard"];
+                    } elif &theme == "forge" {
+                        anames = ["Cloth Armor", "Iron Mail", "Molten Plate"];
+                    } else {
+                        anames = ["Cloth Armor", "Leather Armor", "Chain Shirt"];
+                    }
+                    
                     itm = &applyLuckRingBonus(Item(randChoice(anames), "armor", defv));
                     glyph = "[";
                 } else {
@@ -732,6 +795,8 @@ class Game {
             }
         }
 
+
+        
         # maybe spawn a trader in this level
         &spawnTraderMaybe();
 
@@ -750,6 +815,13 @@ class Game {
 
     func &attackMonster(m) {
         dmg = &player.totalAtk();
+        
+        # Check for armor ability that reduces damage
+        if m.hasAbility("armor") {
+            armor_ability = m.getAbility("armor");
+            dmg = max(1, dmg - armor_ability.armor_value);
+        }
+        
         m.hp = m.hp - dmg;
         if m.hp <= 0 {
             gain = &xpGainFromMonster(m);
@@ -772,14 +844,34 @@ class Game {
             
             &player.gold = &player.gold + gold_gain;
 
+            # Check for split ability before removing monster
+            if m.hasAbility("split") {
+                split_ability = m.getAbility("split");
+                if split_ability.canSplit() {
+                    # Create smaller slime
+                    split_hp = max(1, m.hp // 2);
+                    split_atk = max(1, m.atk // 2);
+                    split_monster = Monster("Small Slime", m.x, m.y, split_hp, split_atk);
+                    split_monster.glyph = "s";
+                    # Give the split monster the same ability but increment count
+                    new_split_ability = SplitAbility(split_ability.max_splits);
+                    new_split_ability.split_count = split_ability.split_count + 1;
+                    split_monster.addAbility(new_split_ability);
+                    &monsters.append(split_monster);
+                    &message = "You slay the " + m.name + "! It splits into a smaller slime! (+" + C_GREEN + str(gain) + " XP" + C_WHITE + ", +" + C_YELLOW + str(gold_gain) + "g" + C_WHITE + ")";
+                } else {
+                    &message = "You slay the " + m.name + "! (+" + C_GREEN + str(gain) + " XP" + C_WHITE + ", +" + C_YELLOW + str(gold_gain) + "g" + C_WHITE + ")";
+                }
+            } else {
+                &message = "You slay the " + m.name + "! (+" + C_GREEN + str(gain) + " XP" + C_WHITE + ", +" + C_YELLOW + str(gold_gain) + "g" + C_WHITE + ")";
+            }
+
             # remove monster by position (robust)
             idx = -1;
             for i = 0, i < length(&monsters), i += 1 {
                 if &monsters[i].x == m.x and &monsters[i].y == m.y { idx = i; break; }
             }
             if idx != -1 { &monsters.pop(idx); }
-
-            &message = "You slay the " + m.name + "! (+" + C_GREEN + str(gain) + " XP" + C_WHITE + ", +" + C_YELLOW + str(gold_gain) + "g" + C_WHITE + ")";
         } else {
             &message = "You hit the " + m.name + " for " + C_RED + str(dmg) + C_WHITE + ".";
             &monsterTurn();
@@ -1002,6 +1094,7 @@ class Game {
             monsters_map[key] = m.glyph;
         }
 
+
         # Visibility: full if disabled; radius-only if enabled
         vis = Null;
         if &fov_enabled { vis = &computeVisibilityRadius(); }
@@ -1092,6 +1185,29 @@ class Game {
             adx = dx; if adx < 0 { adx = -adx; }
             ady = dy; if ady < 0 { ady = -ady; }
 
+            # Check for ranged attack ability
+            if m.hasAbility("ranged") and (adx + ady) > 1 and (adx + ady) <= 6 {
+                ranged_ability = m.getAbility("ranged");
+                if (adx + ady) <= ranged_ability.range and randInt(1, 3) == 1 { # 33% chance to use ranged attack
+                    dmg = m.atk;
+                    red = &player.totalDef();
+                    dmg = dmg - red;
+                    if dmg < 1 { dmg = 1; }
+                    
+                    &player.hp = &player.hp - dmg;
+                    if &message == "" {
+                        &message = "The " + m.name + " shoots you for " + C_RED + str(dmg) + C_WHITE + "!";
+                    } else {
+                        &message = &message + " The " + m.name + " shoots you for " + C_RED + str(dmg) + C_WHITE + "!";
+                    }
+                    if &player.hp <= 0 {
+                        &dead = true;
+                        return;
+                    }
+                    continue;
+                }
+            }
+            
             if (adx + ady) == 1 {
                 # Reveal disguise if monster attacks (mimics can't stay hidden when attacking!)
                 if m.hasAbility("disguise") and m.disguised_as != "" {
@@ -1119,6 +1235,34 @@ class Game {
 
             # Check if monster is in player's view radius
             in_view = (adx + ady) <= 6;
+            
+            # Handle summon ability for necromancers
+            if m.hasAbility("summon") and in_view {
+                summon_ability = m.getAbility("summon");
+                if summon_ability.canSummon() and randInt(1, 10) == 1 { # 10% chance per turn when in view
+                    # Find a free adjacent tile to spawn the summoned monster
+                    for dx2 = -1, dx2 <= 1, dx2 += 1 {
+                        for dy2 = -1, dy2 <= 1, dy2 += 1 {
+                            if dx2 == 0 and dy2 == 0 { continue; } # Skip the center
+                            spawn_x = m.x + dx2;
+                            spawn_y = m.y + dy2;
+                            if &passable(spawn_x, spawn_y) and not &monsterAt(spawn_x, spawn_y) and not (spawn_x == &player.x and spawn_y == &player.y) {
+                                # Spawn the summoned monster
+                                if summon_ability.monster_type == "Skeleton" {
+                                    summoned = Monster("Skeleton", spawn_x, spawn_y, 2 + (&player.depth // 2), 1 + (&player.depth // 3));
+                                    summoned.glyph = "S";
+                                }
+                                if summoned {
+                                    &monsters.append(summoned);
+                                    summon_ability.incrementSummon();
+                                    break;
+                                }
+                            }
+                        }
+                        if summoned { break; }
+                    }
+                }
+            }
             
             # Handle disguised mimics: they don't move when in view, but can sneak around when hidden
             if m.hasAbility("disguise") and m.disguised_as != "" {
@@ -1202,6 +1346,8 @@ class Game {
     
     # ---------- INPUT-ACTION HELPERS ----------
 
+
+
     func &tryMove(dx, dy) {
         nx = &player.x + dx; ny = &player.y + dy;
         if not inBounds(nx, ny) { &message = "You bump the edge."; return; }
@@ -1211,6 +1357,7 @@ class Game {
 
         if &passable(nx, ny) {
             &player.x = nx; &player.y = ny;
+            
             if &grid[ny][nx] == ">" {
                 &depthTransition(&player.depth + 1);
 
