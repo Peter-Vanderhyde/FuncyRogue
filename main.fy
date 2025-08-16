@@ -5,7 +5,7 @@ import "entities.fy";
 import "game.fy";
 import "intro.fy";
 
-intro = false;
+intro = true;
 
 func main() {
     # Play the intro sequence first
@@ -14,6 +14,12 @@ func main() {
     }
     
     g = Game();
+    
+    # First render with torch lighting effect
+    if g.first_render {
+        g.renderWithTorchLighting();
+    }
+    
     while true {
         g.render();
         cmd = input("[WASD]=move  f=pick  i=inv  r=stats  t=talk  v=toggle-fov  n=next  q=quit > ").strip();
@@ -38,6 +44,11 @@ func main() {
         if key == "n" or key == "N" { 
             g.depthTransition(g.player.depth + 1);
             g.buildLevel(g.player.depth + 1);
+            
+            # Show torch lighting effect for new level
+            if g.first_render {
+                g.renderWithTorchLighting();
+            }
             continue; 
         }
 

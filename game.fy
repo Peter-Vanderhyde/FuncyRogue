@@ -26,11 +26,151 @@ class Game {
         &exit = [0,0];       # [x, y]
         &trader = Null;      # { "x":int, "y":int, "stock":[{ "it":Item, "price":int }] } or Null
         &theme = "catacombs"; # current level theme
+        &first_render = true; # Track if this is the first render
 
         &buildLevel(1);
     }
 
     # ------------ UTILITIES ------------
+
+    # Render with torch lighting effect for first reveal
+    func &renderWithTorchLighting() {
+        # First, just show the player in darkness
+        &renderPlayerOnly();
+        
+        # Gradually light up the area, increasing radius each time
+        for radius = 1, radius <= FOV_RADIUS, radius += 1 {
+            &renderWithRadius(radius);
+            delayMs(300);  # Brief pause between each radius increase
+        }
+        
+        # Final render with full FOV
+        &message = "You enter the caves...";
+        &render();
+        &first_render = false;  # Mark that first render is complete
+    }
+    
+    # Render only the player tile (everything else is dark)
+    func &renderPlayerOnly() {
+        lines = [];
+        header = "== Funcy Roguelike :: " + &player.statsStr() + " ==";
+        lines.append(header);
+        lines.append(" ");  # Empty message line
+        
+        for y = 0, y < MAP_H, y += 1 {
+            row_chars = [];
+            for x = 0, x < MAP_W, x += 1 {
+                ch = " ";  # Default to dark
+                if x == &player.x and y == &player.y {
+                    # Only show the player
+                    ch = &applyColorVisibleTile(&player.glyph);
+                }
+                row_chars.append(ch);
+            }
+            lines.append("".join(row_chars));
+        }
+        
+        print("\e[H\e[J" + "\n".join(lines));
+    }
+    
+    # Render with specific visibility radius
+    func &renderWithRadius(radius) {
+        # Precompute quick lookup maps (O(entities))
+        items_map = {};        # key: "x,y" -> glyph
+        for i = 0, i < length(&items), i += 1 {
+            rec = &items[i];
+            key = str(rec["x"]) + "," + str(rec["y"]);
+            items_map[key] = rec["glyph"];
+        }
+        monsters_map = {};     # key: "x,y" -> glyph
+        for i = 0, i < length(&monsters), i += 1 {
+            m = &monsters[i];
+            key = str(m.x) + "," + str(m.y);
+            monsters_map[key] = m.glyph;
+        }
+
+        # Compute visibility with specific radius
+        vis = [];
+        for y = 0, y < MAP_H, y += 1 {
+            row = [];
+            for x = 0, x < MAP_W, x += 1 { row.append(false); }
+            vis.append(row);
+        }
+        px = &player.x; py = &player.y;
+        R2 = radius * radius;
+
+        miny = py - radius; if miny < 0 { miny = 0; }
+        maxy = py + radius; if maxy >= MAP_H { maxy = MAP_H - 1; }
+        minx = px - radius; if minx < 0 { minx = 0; }
+        maxx = px + radius; if maxx >= MAP_W { maxx = MAP_W - 1; }
+
+        for y = miny, y <= maxy, y += 1 {
+            for x = minx, x <= maxx, x += 1 {
+                dx = x - px; dy = y - py;
+                if dx*dx + dy*dy <= R2 { vis[y][x] = true; }
+            }
+        }
+
+        # Cache exit coords for cheap compare
+        ex = &exit[0]; ey = &exit[1];
+
+        lines = [];
+        header = "== Funcy Roguelike :: " + &player.statsStr() + " ==";
+        lines.append(header);
+        lines.append(" ");  # Empty message line
+
+        for y = 0, y < MAP_H, y += 1 {
+            row_chars = [];
+            for x = 0, x < MAP_W, x += 1 {
+                visible = vis[y][x];
+                ch = " ";
+
+                if visible {
+                    &seen[y][x] = true;
+
+                    # base tile
+                    base = &grid[y][x];
+                    ch = base;
+
+                    key = str(x) + "," + str(y);
+                    if key in items_map { ch = items_map[key]; }
+                    if key in monsters_map { ch = monsters_map[key]; }
+
+                    # trader overlay
+                    if &trader {
+                        if x == &trader["x"] and y == &trader["y"] { ch = "T"; }
+                    }
+
+                    # player on top
+                    if x == &player.x and y == &player.y { ch = &player.glyph; }
+
+                    # visible tinting / colors
+                    ch = &applyColorVisibleTile(ch);
+                } else {
+                    if &seen[y][x] {
+                        if &grid[y][x] == "#" {
+                            ch = "#";
+                            if &color_enabled { 
+                                # Remembered walls use dimmed gray, not theme colors
+                                ch = C_WALL_DIM + ch + C_RESET;
+                            }
+                        } elif x == ex and y == ey {
+                            ch = ">";
+                            if &color_enabled { ch = C_EXIT + ch + C_RESET; }
+                        } else {
+                            ch = " ";
+                        }
+                    } else {
+                        ch = " ";
+                    }
+                }
+                row_chars.append(ch);
+            }
+            lines.append("".join(row_chars));
+        }
+
+        print("\e[H\e[J" + "\n".join(lines));
+    }
 
     func &buildLineFromRow(row) {
         s = "";
@@ -363,6 +503,9 @@ class Game {
         
         &message = "You descend to depth " + str(&player.depth) + theme_desc + ".";
         &dead = false;
+        
+        # Mark that this level needs torch lighting effect
+        &first_render = true;
     }
 
     func &attackMonster(m) {

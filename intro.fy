@@ -1,105 +1,225 @@
-# intro.fy — animated title sequence for Funcy Roguelike
+# intro.fy — Matrix-style intro sequence with pulsing title
 import "config.fy";
 
-# Busy-wait delay using built-in time() which returns ms.
+# Simple delay function
 func delayMs(ms) {
     start = time();
-    while time() - start < ms { }   # simple, portable
+    while time() - start < ms { }
 }
 
-# Clear screen and move cursor to top-left
+# Clear screen
 func clearScreen() {
-    print("\e[H\e[J");
+    print("\e[H\e[J\n");
 }
 
-# Move cursor to specific position
-func moveCursor(x, y) {
-    print("\e[" + str(y) + ";" + str(x) + "H");
-}
-
-# Title text
-func getTitle() {
-    return "FUNCY ROGUELIKE";
-}
-
-# Subtitle text
-func getSubtitle() {
-    return "A Procedural Dungeon Crawler Adventure";
-}
-
-# Animated title sequence
-func playIntro() {
-    clearScreen();
-    
-    # Get title components
-    title = getTitle();
-    subtitle = getSubtitle();
-    
-    # Position title in center of screen
-    title_x = 25;  # Center horizontally
-    title_y = 8;   # Upper middle
-    
-    # Glitch effect - random characters appearing and disappearing
-    for glitch_round = 0, glitch_round < 8, glitch_round += 1 {
-        clearScreen();
+# Matrix rain effect - falling characters
+func matrixRain() {
+    # Create random falling characters
+    for frame = 0, frame < 20, frame += 1 {
+        rain_frame = "";
         
-        # Show glitched version
-        glitched_title = "";
-        for i = 0, i < length(title), i += 1 {
-            if randInt(0, 3) == 0 {  # 25% chance to glitch
-                # Random glitch character
-                glitch_chars = ["@", "#", "$", "%", "&", "*", "!", "?"];
-                glitched_title = glitched_title + "\e[91m" + randChoice(glitch_chars) + "\e[0m";  # Red glitch
-            } else {
-                glitched_title = glitched_title + title[i];
+        # Add some empty lines at top
+        for i = 0, i < 5, i += 1 {
+            rain_frame = rain_frame + "\n";
+        }
+        
+        # Create random falling characters
+        for line = 0, line < MAP_H - 10, line += 1 {
+            rain_line = "";
+            for col = 0, col < MAP_W, col += 1 {
+                # Random chance to show a character
+                if randInt(0, 99) < 15 {
+                    # Random matrix character
+                    chars = ["0", "1", "#", ".", "*", "+", "=", "-", "|", "/"];
+                    rain_line = rain_line + chars[randInt(0, length(chars) - 1)];
+                } else {
+                    rain_line = rain_line + " ";
+                }
             }
+            rain_frame = rain_frame + rain_line + "\n";
         }
         
-        moveCursor(title_x, title_y);
-        print("\e[36m" + glitched_title + "\e[0m");  # Cyan title
-        delayMs(150);
-    }
-    
-    # Final clean title
-    clearScreen();
-    moveCursor(title_x, title_y);
-    print("\e[36m" + title + "\e[0m");
-    
-    # Subtitle appears below title
-    subtitle_x = 15;  # Center subtitle
-    subtitle_y = title_y + 2;
-    
-    # Subtitle builds up character by character
-    for i = 0, i < length(subtitle), i += 1 {
-        clearScreen();
-        
-        # Show title
-        moveCursor(title_x, title_y);
-        print("\e[36m" + title + "\e[0m");
-        
-        # Build subtitle character by character
-        current_subtitle = "";
-        for j = 0, j <= i, j += 1 {
-            current_subtitle = current_subtitle + subtitle[j];
-        }
-        
-        moveCursor(subtitle_x, subtitle_y);
-        print("\e[95m" + current_subtitle + "\e[0m");  # Magenta
-        
+        print("\e[H" + rain_frame);
         delayMs(100);
     }
+}
+
+# Glitch title effect
+func glitchTitle() {
+    title = "FUNCY ROGUE";
+    subtitle = "A Descent Into Procedural Madness";
     
-    # Final display with both title and subtitle
+    # Position the title where the spiral box will start (smallest size)
+    # Spiral starts at radius 1, so width = 1*4 + 20 = 24, height = 6
+    box_width = 24;
+    box_height = 6;
+    
+    # Center the title within the starting box size
+    title_spaces = "";
+    for i = 0, i < (box_width - length(title)) // 2, i += 1 {
+        title_spaces = title_spaces + " ";
+    }
+    
+    subtitle_spaces = "";
+    for i = 0, i < (box_width - length(subtitle)) // 2, i += 1 {
+        subtitle_spaces = subtitle_spaces + " ";
+    }
+    
+    # Glitch effect - random characters and flickering
+    for glitch_step = 0, glitch_step < 12, glitch_step += 1 {
+        frame = "";
+        
+        # Add empty lines to center vertically (same as spiral) + 2 more lines down
+        for i = 0, i < MAP_H // 3 + 3, i += 1 {
+            frame = frame + "\n";
+        }
+        
+        # Add left margin to match spiral positioning
+        frame = frame + "  ";
+        
+        # Glitch the main title
+        if glitch_step < 8 {
+            # Random glitch characters
+            glitch_title = "";
+            for i = 0, i < length(title), i += 1 {
+                if randInt(0, 100) < 30 {
+                    # Random glitch character
+                    glitch_chars = ["@", "#", "$", "%", "&", "*", "!", "?", "~", "^"];
+                    glitch_title = glitch_title + glitch_chars[randInt(0, length(glitch_chars) - 1)];
+                } else {
+                    glitch_title = glitch_title + title[i];
+                }
+            }
+            frame = frame + title_spaces + glitch_title + "\n\n";
+        } else {
+            # Final clean title
+            frame = frame + title_spaces + title + "\n\n";
+        }
+        
+        # Subtitle appears after main title settles
+        if glitch_step >= 8 {
+            frame = frame + subtitle_spaces + subtitle + "\n";
+        }
+        
+        print("\e[H" + frame);
+        delayMs(150);
+    }
+}
+
+# Spiral reveal effect
+func spiralReveal() {
+    # Create a spiral pattern that reveals the title
+    spiral_chars = ["╔", "═", "╗", "║", "╝", "═", "╚", "║"];
+    spiral_idx = 0;
+    
+    for radius = 1, radius <= 8, radius += 1 {
+        spiral_frame = "";
+        
+        # Add empty lines to center
+        for i = 0, i < MAP_H // 3, i += 1 {
+            spiral_frame = spiral_frame + "\n";
+        }
+        
+        # Create spiral border - smaller, more reasonable size
+        width = radius * 4 + 20;  # Start at 24, grow to 52
+        height = 6;  # Fixed height for title + subtitle
+        
+        # Top border
+        spiral_frame = spiral_frame + "  ";
+        for i = 0, i < width, i += 1 {
+            spiral_frame = spiral_frame + "=";
+        }
+        spiral_frame = spiral_frame + "\n";
+        
+        # Middle section with title and subtitle
+        for line = 0, line < height, line += 1 {
+            spiral_frame = spiral_frame + "  |";
+            if line == 2 {
+                # Center the main title
+                title = "FUNCY ROGUE";
+                title_spaces = "";
+                for i = 0, i < (width - length(title)) // 2, i += 1 {
+                    title_spaces = title_spaces + " ";
+                }
+                spiral_frame = spiral_frame + title_spaces + title;
+                # Fill remaining space
+                for i = 0, i < width - length(title) - length(title_spaces), i += 1 {
+                    spiral_frame = spiral_frame + " ";
+                }
+            } elif line == 3 {
+                # Center the subtitle
+                subtitle = "A Descent Into Procedural Madness";
+                subtitle_spaces = "";
+                for i = 0, i < (width - length(subtitle)) // 2, i += 1 {
+                    subtitle_spaces = subtitle_spaces + " ";
+                }
+                spiral_frame = spiral_frame + subtitle_spaces + subtitle;
+                # Fill remaining space
+                for i = 0, i < width - length(subtitle) - length(subtitle_spaces), i += 1 {
+                    spiral_frame = spiral_frame + " ";
+                }
+            } else {
+                # Empty lines
+                for i = 0, i < width, i += 1 {
+                    spiral_frame = spiral_frame + " ";
+                }
+            }
+            spiral_frame = spiral_frame + "|\n";
+        }
+        
+        # Bottom border
+        spiral_frame = spiral_frame + "  ";
+        for i = 0, i < width, i += 1 {
+            spiral_frame = spiral_frame + "=";
+        }
+        
+        clearScreen();
+        print(spiral_frame);
+        delayMs(150);
+    }
+}
+
+# Simple intro sequence
+func playIntro() {
+    # Phase 1: Spiral reveal
     clearScreen();
-    moveCursor(title_x, title_y);
-    print("\e[36m" + title + "\e[0m");
+    spiralReveal();
     
-    moveCursor(subtitle_x, subtitle_y);
-    print("\e[95m" + subtitle + "\e[0m");
+    # Add a few empty lines after the title
+    print("\n\n");
     
-    # Pause briefly before loading game
-    delayMs(1500);
+    # Show "Press Enter to light your torch..." message
+    press_enter_msg = "Press Enter to light your torch...";
+    press_enter_x = (MAP_W - length(press_enter_msg)) // 3;
+    press_enter_spaces = "";
+    for i = 0, i < press_enter_x, i += 1 {
+        press_enter_spaces = press_enter_spaces + " ";
+    }
+    print(press_enter_spaces + press_enter_msg);
     
-    # Fade out
+    # Wait for user to press Enter
+    input("");
+    
+    # Phase 4: Screen wipe down effect from top of terminal
+    # Move cursor to top of terminal
+    print("\e[H");
+    
+    # Build one full-width blank line
+    blank = "";
+    for i = 0, i < MAP_W, i += 1 {
+        blank = blank + " ";
+    }
+    
+    # Print enough rows to "wipe" downward from top (similar to descending effect)
+    total = MAP_H + 1;   # a little extra for effect
+    for n = 0, n < total, n += 1 {
+        print(blank);
+        delayMs(50);
+    }
+    
+    # Pause after wipe
+    delayMs(800);
+    
+    # Final clear and start the game
     clearScreen();
 }
