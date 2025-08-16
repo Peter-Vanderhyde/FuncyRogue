@@ -39,7 +39,7 @@ class Game {
         &renderPlayerOnly();
         
         # Gradually light up the area, increasing radius each time
-        for radius = 1, radius <= FOV_RADIUS, radius += 1 {
+        for radius = 1, radius <= FOV_RADIUS, radius += 2 {
             &renderWithRadius(radius);
             delayMs(300);  # Brief pause between each radius increase
         }

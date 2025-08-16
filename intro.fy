@@ -181,6 +181,13 @@ func spiralReveal() {
 
 # Simple intro sequence
 func playIntro() {
+    # Check if intro is enabled
+    if not INTRO_ENABLED {
+        # Skip intro - just clear screen and continue
+        clearScreen();
+        return;
+    }
+    
     # Phase 1: Spiral reveal
     clearScreen();
     spiralReveal();
@@ -200,7 +207,7 @@ func playIntro() {
     # Wait for user to press Enter
     input("");
     
-    # Phase 4: Screen wipe down effect from top of terminal
+    # Phase 2: Screen wipe down effect from top of terminal
     # Move cursor to top of terminal
     print("\e[H");
     

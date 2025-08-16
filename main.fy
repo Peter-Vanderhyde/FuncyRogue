@@ -5,18 +5,17 @@ import "entities.fy";
 import "game.fy";
 import "intro.fy";
 
-intro = true;
 
 func main() {
     # Play the intro sequence first
-    if intro {
+    if INTRO_ENABLED {
         playIntro();
     }
     
     g = Game();
     
     # First render with torch lighting effect
-    if g.first_render {
+    if g.first_render and INTRO_ENABLED {
         g.renderWithTorchLighting();
     }
     

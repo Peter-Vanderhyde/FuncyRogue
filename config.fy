@@ -39,6 +39,9 @@ LEVEL_XP_BASE = 10;
 LEVEL_XP_SCALE = 5;
 XP_PER_KILL_BASE = 3;
 
+# Intro & UI
+INTRO_ENABLED = false;     # Set to true to play intro animation
+
 # Economy & shops
 GOLD_START = 0;
 REST_SHOP_CHANCE = 75;     # % chance to see rest-shop on descent
