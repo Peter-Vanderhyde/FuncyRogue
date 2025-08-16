@@ -45,13 +45,12 @@ class Game {
         &renderPlayerOnly();
         
         # Gradually light up the area, increasing radius each time
-        for radius = 1, radius <= FOV_RADIUS, radius += 2 {
+        for radius = 2, radius <= FOV_RADIUS, radius += 2 {
             &renderWithRadius(radius);
             delayMs(300);  # Brief pause between each radius increase
         }
         
         # Final render with full FOV
-        &message = "You enter the caves...";
         &render();
         &first_render = false;  # Mark that first render is complete
     }
@@ -212,11 +211,17 @@ class Game {
             return C_MON + ch + C_RESET;
         }
         if ch == "T" { return C_TRADER + "T" + C_RESET; }
+        if ch == "C" { return C_ITEM + "C" + C_RESET; } # Chests (including disguised mimics)
         return ch;
     }
 
+    # Check if coordinates are within map bounds
+    func &inBounds(x, y) {
+        return x >= 0 and x < MAP_W and y >= 0 and y < MAP_H;
+    }
+    
     func &passable(x, y) {
-        if not inBounds(x, y) { return false; }
+        if not &inBounds(x, y) { return false; }
         tile = &grid[y][x];
         # Basic passable tiles
         if tile == "." or tile == ">" { return true; }
@@ -360,20 +365,30 @@ class Game {
             itm = Null;
             if roll < 3 {
                 heal = randInt(5, 10) + (&player.depth // 3);   # tiny depth bump
-                itm = Item("Red Potion", "potion", heal);
+                itm = &applyLuckRingBonus(Item("Red Potion", "potion", heal));
             } elif roll < 6 {
                 pwr = randInt(1, 3) + (&player.depth // 3);
+                
                 wnames = ["Dagger", "Shortsword", "Club"];
-                itm = Item(randChoice(wnames), "weapon", pwr);
+                itm = &applyLuckRingBonus(Item(randChoice(wnames), "weapon", pwr));
             } elif roll < 8 {
                 defv = randInt(1, 2) + (&player.depth // 4);
+                
                 anames = ["Cloth Armor", "Leather Armor", "Chain Shirt"];
-                itm = Item(randChoice(anames), "armor", defv);
+                itm = &applyLuckRingBonus(Item(randChoice(anames), "armor", defv));
             } else {
-                rnames = ["Ring of Power", "Ring of Defense"];
-                itm = Item(randChoice(rnames), "ring", 0);
-                if itm.name == "Ring of Power" { itm.subkind = "power"; }
-                else { itm.subkind = "defense"; }
+                # Randomly choose power or defense ring with unique names
+                if randInt(1, 2) == 1 { # Power ring
+                    power_names = ["Ring of the Iron Blade", "Ring of the Burning Flame", "Ring of the Sharp Edge"];
+                    itm = Item(randChoice(power_names), "ring", 0);
+                    itm.subkind = "power";
+                    itm.stats = randInt(1, 3); # +1 to +3 ATK in shops
+                } else { # Defense ring
+                    defense_names = ["Ring of the Copper Guard", "Ring of the Stone Wall", "Ring of the Iron Defense"];
+                    itm = Item(randChoice(defense_names), "ring", 0);
+                    itm.subkind = "defense";
+                    itm.stats = randInt(1, 3); # +1 to +3 DEF in shops
+                }
             }
             price = &priceFor(itm);
             stock.append({ "it": itm, "price": price });
@@ -385,15 +400,19 @@ class Game {
         while true {
             print("\e[H\e[J");
             print("== " + title + " ==");
-            print("Gold: " + str(&player.gold));
+            print(C_YELLOW + "Gold: " + str(&player.gold) + C_RESET);
             print("Items (choose 1.." + str(length(stock)) + ", or blank to leave):");
             for i = 0, i < length(stock), i += 1 {
                 rec = stock[i];
-                line = "  [" + str(i + 1) + "] " + rec["it"].toString() + "  - " + str(rec["price"]) + "g";
+                line = "  [" + str(i + 1) + "] " + rec["it"].toString() + "  - " + C_YELLOW + str(rec["price"]) + "g" + C_RESET;
                 print(line);
             }
             choice = input("> ").strip();
-            if choice == "" { break; }
+            if choice == "" { 
+                # Set first_render to true so view animation plays when leaving shop
+                &first_render = true;
+                break; 
+            }
             if not choice.isDigit() { print("Please enter a number."); _ = input("(Enter) "); continue; }
             idx1 = int(choice);
             if idx1 < 1 or idx1 > length(stock) { print("Out of range."); _ = input("(Enter) "); continue; }
@@ -508,27 +527,208 @@ class Game {
 
                 if roll < 3 {
                     heal = randInt(5, 10);
-                    itm = Item("Red Potion", "potion", heal);
+                    
+                    # Fortune ring bonus: chance to improve potion healing
+                    itm = &applyLuckRingBonus(Item("Red Potion", "potion", heal));
                     glyph = "!";
                 } elif roll < 6 {
                     pwr = randInt(1, 3);
+                    
                     wnames = ["Dagger", "Shortsword", "Club"];
-                    itm = Item(randChoice(wnames), "weapon", pwr);
+                    itm = &applyLuckRingBonus(Item(randChoice(wnames), "weapon", pwr));
                     glyph = ")";
                 } elif roll < 8 {
                     defv = randInt(1, 2);
+                    
                     anames = ["Cloth Armor", "Leather Armor", "Chain Shirt"];
-                    itm = Item(randChoice(anames), "armor", defv);
+                    itm = &applyLuckRingBonus(Item(randChoice(anames), "armor", defv));
                     glyph = "[";
                 } else {
-                    rnames = ["Ring of Power", "Ring of Defense"];
-                    itm = Item(randChoice(rnames), "ring", 0);
-                    if itm.name == "Ring of Power" { itm.subkind = "power"; }
-                    else { itm.subkind = "defense"; }
+                    # Randomly choose power or defense ring with unique names
+                    if randInt(1, 2) == 1 { # Power ring
+                        power_names = ["Ring of the Iron Blade", "Ring of the Burning Flame", "Ring of the Sharp Edge"];
+                        itm = Item(randChoice(power_names), "ring", 0);
+                        itm.subkind = "power";
+                        itm.stats = randInt(1, 2); # +1 or +2 ATK
+                    } else { # Defense ring
+                        defense_names = ["Ring of the Copper Guard", "Ring of the Stone Wall", "Ring of the Iron Defense"];
+                        itm = Item(randChoice(defense_names), "ring", 0);
+                        itm.subkind = "defense";
+                        itm.stats = randInt(1, 2); # +1 or +2 DEF
+                    }
                     glyph = "=";
                 }
 
                 &items.append({ "x": rx, "y": ry, "glyph": glyph, "it": itm });
+            }
+        }
+        
+        # Spawn chests with chance to be mimics
+        for i = 0, i < 2, i += 1 { # Spawn 2 chests per level
+            r = randChoice(&rooms);
+            if r["w"] > 1 and r["h"] > 1 {
+                rx = randInt(r["x"], r["x"] + r["w"] - 1);
+                ry = randInt(r["y"], r["y"] + r["h"] - 1);
+                if (&grid[ry][rx] == ".")
+                   and not (&player.x == rx and &player.y == ry)
+                   and not (rx == exitX and ry == exitY)
+                   and (&itemIndexAt(rx, ry) == -1)
+                   and not &monsterAt(rx, ry) {
+                    
+                    # 20% chance to be a mimic
+                    if randInt(1, 5) == 1 {
+                        mimic_hp = 8 + (&player.depth - 1);
+                        mimic_atk = 2 + (&player.depth // 2);
+                        mimic = Monster("Mimic", rx, ry, mimic_hp, mimic_atk);
+                        disguise_ability = DisguiseAbility("chest");
+                        mimic.addAbility(disguise_ability);
+                        &monsters.append(mimic);
+                    } else {
+                        # Regular chest with multiple items
+                        chest_items = [];
+                        item_count = randInt(2, 4); # 2-4 items per chest
+                        
+                        # Get luck bonus for chest quality and item improvements
+                        luck_bonus = &player.ringLuck();
+                        
+                        for j = 0, j < item_count, j += 1 {
+                            # First: Determine if this item should be high quality
+                            # Base 25% + 25% per luck point, capped at 90%
+                            quality_chance = 25 + (luck_bonus * 25);
+                            if quality_chance > 90 { quality_chance = 90; }
+                            is_high_quality = randInt(1, 100) <= quality_chance;
+                            
+                            # Second: Determine item type
+                            # 40% potion, 30% weapon, 20% armor, 10% ring
+                            item_type_roll = randInt(1, 100);
+                            
+                            if item_type_roll <= 40 { # Potion (40%)
+                                heal = 0;
+                                potion_name = "Health Potion";
+                                
+                                if is_high_quality {
+                                    heal = randInt(12, 20); # High quality: better base stats
+                                    potion_name = "Greater Potion";
+                                } else {
+                                    heal = randInt(8, 15);  # Normal quality: standard stats    
+                                }
+                                
+                                # Apply luck bonus to improve stats
+                                if luck_bonus > 0 {
+                                    heal = heal + (luck_bonus * 2);
+                                }
+                                
+                                chest_items.append(&applyLuckRingBonus(Item(potion_name, "potion", heal)));
+                                
+                            } elif item_type_roll <= 70 { # Weapon (30%)
+                                pwr = 0;
+                                weapon_name = "Iron Sword";
+                                
+                                if is_high_quality {
+                                    pwr = randInt(3, 6); # High quality: better base stats
+                                    weapon_name = "Steel Sword";
+                                } else {
+                                    pwr = randInt(2, 5);  # Normal quality: standard stats    
+                                }
+                                
+                                # Apply luck bonus to improve stats
+                                if luck_bonus > 0 {
+                                    pwr = pwr + luck_bonus;
+                                }
+                                
+                                chest_items.append(&applyLuckRingBonus(Item(weapon_name, "weapon", pwr)));
+                                
+                            } elif item_type_roll <= 90 { # Armor (20%)
+                                defv = 0;
+                                armor_name = "Leather Armor";
+                                if is_high_quality {
+                                    defv = randInt(3, 5); # High quality: better base stats
+                                    armor_name = "Chain Mail";
+                                } else {
+                                    defv = randInt(2, 4);  # Normal quality: standard stats    
+                                }
+                                
+                                # Apply luck bonus to improve stats
+                                if luck_bonus > 0 {
+                                    defv = defv + luck_bonus;
+                                }
+                                
+                                chest_items.append(&applyLuckRingBonus(Item(armor_name, "armor", defv)));
+                                
+                            } else { # Ring (10%)
+                                # Ring of Luck chance: 20% + 20% per luck point, capped at 80%
+                                luck_ring_chance = 20 + (luck_bonus * 20);
+                                if luck_ring_chance > 80 { luck_ring_chance = 80; }
+                                
+                                if randInt(1, 100) <= luck_ring_chance { # Ring of Luck
+                                    # Choose a unique luck ring name
+                                    luck_names = ["Ring of the Lucky Star", "Ring of Fortune's Favor", "Ring of the Charmed Fate", "Ring of Destiny's Call"];
+                                    luck_ring = Item(randChoice(luck_names), "ring", 0);
+                                    luck_ring.subkind = "luck";
+                                    
+                                    # Base stats: 75% +1, 20% +2, 5% +3
+                                    roll = randInt(1, 100);
+                                    if roll <= 75 { luck_ring.stats = 1; }
+                                    elif roll <= 95 { luck_ring.stats = 2; }
+                                    else { luck_ring.stats = 3; }
+                                    
+                                    # Luck rings can improve the Ring of Luck you find!
+                                    if luck_bonus > 0 {
+                                        # Apply luck ring bonus to the new Ring of Luck
+                                        luck_ring = &applyLuckRingBonus(luck_ring);
+                                    }
+                                    
+                                    chest_items.append(luck_ring);
+                                    
+                                } else { # Enhanced Power/Defense ring
+                                    # Define ring names based on quality
+                                    power_names = [];
+                                    defense_names = [];
+                                    if is_high_quality {
+                                        # High quality ring names
+                                        power_names = ["Ring of the Dragon's Fury", "Ring of Thunder's Wrath", "Ring of the Phoenix Flame"];
+                                        defense_names = ["Ring of the Guardian's Shield", "Ring of the Crystal Barrier", "Ring of the Ancient Protector"];
+                                    } else {
+                                        # Normal quality ring names
+                                        power_names = ["Ring of the Iron Blade", "Ring of the Burning Flame", "Ring of the Sharp Edge"];
+                                        defense_names = ["Ring of the Copper Guard", "Ring of the Stone Wall", "Ring of the Iron Defense"];
+                                    }
+                                    
+                                    # Declare enhanced_ring variable at the beginning of the block
+                                    enhanced_ring = Null;
+                                    
+                                    # Randomly choose power or defense
+                                    if randInt(1, 2) == 1 { # Power ring
+                                        enhanced_ring = Item(randChoice(power_names), "ring", 0);
+                                        enhanced_ring.subkind = "power";
+                                        if is_high_quality {
+                                            enhanced_ring.stats = randInt(3, 5); # High quality: +3 to +5 ATK
+                                        } else {
+                                            enhanced_ring.stats = randInt(2, 4); # Normal quality: +2 to +4 ATK
+                                        }
+                                    } else { # Defense ring
+                                        enhanced_ring = Item(randChoice(defense_names), "ring", 0);
+                                        enhanced_ring.subkind = "defense";
+                                        if is_high_quality {
+                                            enhanced_ring.stats = randInt(3, 5); # High quality: +3 to +5 DEF
+                                        } else {
+                                            enhanced_ring.stats = randInt(2, 4); # Normal quality: +2 to +4 DEF
+                                        }
+                                    }
+                                    
+                                    # Apply luck bonus to improve stats
+                                    if luck_bonus > 0 {
+                                        enhanced_ring.stats = enhanced_ring.stats + luck_bonus;
+                                    }
+                                    
+                                    chest_items.append(enhanced_ring);
+                                }
+                            }
+                        }
+                        
+                        &items.append({ "x": rx, "y": ry, "glyph": "C", "it": chest_items, "is_chest": true });
+                    }
+                }
             }
         }
 
@@ -553,9 +753,23 @@ class Game {
         m.hp = m.hp - dmg;
         if m.hp <= 0 {
             gain = &xpGainFromMonster(m);
+            
+            # Luck ring bonus: increase XP gains
+            luck_bonus = &player.ringLuck();
+            if luck_bonus > 0 {
+                gain = gain + (luck_bonus * 1); # +1 XP per luck point
+            }
+            
             &gainXP(gain);
 
             gold_gain = randInt(1, 3) + (&player.depth // 2);
+            
+            # Luck ring bonus: increase gold drops
+            luck_bonus = &player.ringLuck();
+            if luck_bonus > 0 {
+                gold_gain = gold_gain + (luck_bonus * 2); # +2 gold per luck point
+            }
+            
             &player.gold = &player.gold + gold_gain;
 
             # remove monster by position (robust)
@@ -565,9 +779,9 @@ class Game {
             }
             if idx != -1 { &monsters.pop(idx); }
 
-            &message = "You slay the " + m.name + "! (+XP " + str(gain) + ", +" + str(gold_gain) + "g)";
+            &message = "You slay the " + m.name + "! (+" + C_GREEN + str(gain) + " XP" + C_WHITE + ", +" + C_YELLOW + str(gold_gain) + "g" + C_WHITE + ")";
         } else {
-            &message = "You hit the " + m.name + " for " + str(dmg) + ".";
+            &message = "You hit the " + m.name + " for " + C_RED + str(dmg) + C_WHITE + ".";
             &monsterTurn();
             # The monster's attack message will now be added to the existing message
         }
@@ -577,9 +791,26 @@ class Game {
         idx = &itemIndexAt(&player.x, &player.y);
         if idx == -1 { &message = "Nothing to pick up."; return; }
         rec = &items[idx];
-        &items.pop(idx);
-        &player.inventory.append(rec["it"]);
-        &message = "Picked up " + rec["it"].toString() + ".";
+        
+        # Check if this is a chest (with proper safety check)
+        is_chest = false;
+        if "is_chest" in rec { is_chest = rec["is_chest"]; }
+        
+        if is_chest {
+            &message = "You open the chest and find:";
+            # Add all chest items to inventory
+            for i = 0, i < length(rec["it"]), i += 1 {
+                item = rec["it"][i];
+                &player.inventory.append(item);
+                &message = &message + " " + item.toString();
+            }
+            &items.pop(idx);
+        } else {
+            # Regular single item
+            &items.pop(idx);
+            &player.inventory.append(rec["it"]);
+            &message = "Picked up " + rec["it"].toString() + ".";
+        }
     }
 
     # --- Equipment helpers ---
@@ -634,16 +865,56 @@ class Game {
     }
 
     func &useInventory() {
-        if length(&player.inventory) == 0 {
+        # Check if there are any equipped items or if inventory has items
+        has_equipped = &player.weapon or &player.armor;
+        for i = 0, i < MAX_RING_SLOTS, i += 1 {
+            if i < length(&player.rings) and &player.rings[i] { 
+                has_equipped = true; 
+                break; 
+            }
+        }
+        
+        # Only return early if no equipped items AND no inventory items
+        if length(&player.inventory) == 0 and not has_equipped {
             print("Inventory is empty."); return;
         }
-        print("Inventory:");
-        for i = 0, i < length(&player.inventory), i += 1 {
-            it = &player.inventory[i];
-            # show indices starting at 1
-            print("  [" + str(i + 1) + "] " + it.toString() + "  {" + it.kind + "}");
+        
+        # Show equipped items first
+        print("=== EQUIPPED ITEMS ===");
+        if &player.weapon { 
+            print(C_RESET + "  Weapon: " + &player.weapon.toString()); 
+        } else { 
+            print(C_RESET + "  Weapon: none"); 
         }
-        which = input("Use/equip which index (1.." + str(length(&player.inventory)) + ", blank cancels)? ").strip();
+        if &player.armor { 
+            print(C_RESET + "  Armor: " + &player.armor.toString()); 
+        } else { 
+            print(C_RESET + "  Armor: none"); 
+        }
+        
+        # Show rings
+        for i = 0, i < MAX_RING_SLOTS, i += 1 {
+            if i < length(&player.rings) and &player.rings[i] { 
+                print(C_RESET + "  Ring[" + str(i + 1) + "]: " + &player.rings[i].toString()); 
+            } else { 
+                print(C_RESET + "  Ring[" + str(i + 1) + "]: none"); 
+            }
+        }
+        
+        print("\n=== INVENTORY ===");
+        which = "";
+        if length(&player.inventory) == 0 {
+            print(C_RESET + "  (No items in inventory)");
+            _ = input("Press Enter to return: ");
+            return;
+        } else {
+            for i = 0, i < length(&player.inventory), i += 1 {
+                it = &player.inventory[i];
+                # show indices starting at 1
+                print(C_RESET + "  [" + str(i + 1) + "] " + it.toString() + "  {" + it.kind + "}");
+            }
+            which = input("Use/equip which index (1.." + str(length(&player.inventory)) + ", blank cancels)? ").strip();
+        }
         if which == "" { return; }
         if not which.isDigit() { print("Please enter a number."); return; }
 
@@ -660,17 +931,34 @@ class Game {
             print("You drink the potion and heal " + str(heal) + ".");
             _ = input("(press Enter) ");
             &player.inventory.pop(idx);
+            # Re-render and show inventory again
+            &render();
+            &useInventory();
+            return;
         } elif it2.kind == "weapon" {
             &player.inventory.pop(idx);
             &equipWeapon(it2);
+            # Re-render and show inventory again
+            &render();
+            &useInventory();
+            return;
         } elif it2.kind == "armor" {
             &player.inventory.pop(idx);
             &equipArmor(it2);
+            # Re-render and show inventory again
+            &render();
+            &useInventory();
+            return;
         } elif it2.kind == "ring" {
             &player.inventory.pop(idx);
             &equipRing(it2);
+            # Re-render and show inventory again
+            &render();
+            &useInventory();
+            return;
         } else {
             print("You can't use that.");
+            _ = input("(press Enter) ");
         }
     }
 
@@ -724,7 +1012,7 @@ class Game {
         lines = [];
         header = "== Funcy Roguelike :: " + &player.statsStr() + " ==";
         lines.append(header);
-        if &message != "" { lines.append(&message); }
+        if &message != "" { lines.append(C_WHITE + &message + C_RESET); }
         else { lines.append(" "); }  # keep board from shifting
 
         for y = 0, y < MAP_H, y += 1 {
@@ -805,6 +1093,11 @@ class Game {
             ady = dy; if ady < 0 { ady = -ady; }
 
             if (adx + ady) == 1 {
+                # Reveal disguise if monster attacks (mimics can't stay hidden when attacking!)
+                if m.hasAbility("disguise") and m.disguised_as != "" {
+                    m.revealDisguise();
+                }
+                
                 dmg = m.atk;
                 red = &player.totalDef();
                 dmg = dmg - red;
@@ -813,9 +1106,9 @@ class Game {
                 &player.hp = &player.hp - dmg;
                 # Append monster attack to existing message instead of overwriting
                 if &message == "" {
-                    &message = "The " + m.name + " hits you for " + str(dmg) + "!";
+                    &message = "The " + m.name + " hits you for " + C_RED + str(dmg) + C_WHITE + "!";
                 } else {
-                    &message = &message + " The " + m.name + " hits you for " + str(dmg) + "!";
+                    &message = &message + " The " + m.name + " hits you for " + C_RED + str(dmg) + C_WHITE + "!";
                 }
                 if &player.hp <= 0 {
                     &dead = true;
@@ -824,8 +1117,32 @@ class Game {
                 continue;
             }
 
+            # Check if monster is in player's view radius
+            in_view = (adx + ady) <= 6;
+            
+            # Handle disguised mimics: they don't move when in view, but can sneak around when hidden
+            if m.hasAbility("disguise") and m.disguised_as != "" {
+                if in_view {
+                    # In view: stay still like a real chest
+                    continue;
+                } else {
+                    # Out of view: small chance to sneak around (15%)
+                    if randInt(1, 7) != 1 { continue; }
+                    # When sneaking, mimics prefer to move towards the player's general direction
+                    if randInt(1, 3) == 1 { # 33% chance to be smart about it
+                        if adx >= ady {
+                            if dx > 0 { stepX = 1; } elif dx < 0 { stepX = -1; }
+                        } else {
+                            if dy > 0 { stepY = 1; } elif dy < 0 { stepY = -1; }
+                        }
+                    }
+                    # Otherwise, they'll just wander randomly (handled by the normal movement logic below)
+                }
+            }
+            # Note: Revealed mimics (disguised_as == "") move normally through the standard movement logic below
+
             stepX = 0; stepY = 0;
-            if (adx + ady) <= 6 and randInt(0,1) == 1 {
+            if in_view and randInt(0,1) == 1 {
                 if adx >= ady {
                     if dx > 0 { stepX = 1; } elif dx < 0 { stepX = -1; }
                 } else {
@@ -851,6 +1168,38 @@ class Game {
     }
 
 
+    # ---------- LUCK RING & ENHANCED RING SYSTEM ----------
+    
+    func &applyLuckRingBonus(item) {
+        luck_bonus = &player.ringLuck();
+        if luck_bonus == 0 { return item; }
+        
+        # Each luck point gives a 50% chance to improve the item
+        # Each successful improvement halves the chance for the next one
+        improvements = 0;
+        chance = 50 * luck_bonus; # 50% base chance per luck point
+        upgraded = true;
+        
+        while upgraded {
+            upgraded = false;
+            if randInt(1, 100) <= chance {
+                # Successfully improve the item
+                if item.kind == "potion" { 
+                    item.stats = item.stats + 2; # +2 healing
+                } elif item.kind == "weapon" {
+                    item.stats = item.stats + 1; # +1 ATK
+                } elif item.kind == "armor" {
+                    item.stats = item.stats + 1; # +1 DEF
+                }
+                improvements = improvements + 1;
+                upgraded = true;
+                chance = chance // 2; # Halve the chance for next improvement
+            }
+        }
+        
+        return item;
+    }
+    
     # ---------- INPUT-ACTION HELPERS ----------
 
     func &tryMove(dx, dy) {

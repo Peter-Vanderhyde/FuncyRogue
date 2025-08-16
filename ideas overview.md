@@ -202,6 +202,10 @@ This document contains every idea and technical note for expanding the Funcy rog
 2. Monster variety (gameplay mix).
 3. Identification/curses (roguelike spice).
 
+The chest logic is incorrect. It's currently automatically making the items higher quality if you have at least one ring. What it should do is get the luck bonus from the rings. For each item it's putting in the chest, determine whether the item should be high quality or average. The chance of being high quality should be 25% plus 25% for each luck bonus and capping out at 90%. After that check, it determines the kind of item in the chest by picking a random number. There should be a 40% chance of it being a potion, 30% chance of a weapon, 20% chance of armor, and 10% chance of a ring. It will then affect the stats and everything based on the luck bonus. For rings, it will do another chance roll for a luck ring. The base chance is 20% plus 20% per luck bonus and capping at 80%. If it fails to be a ring of luck, it just becomes a higher quality higher stat ring of power or defense. Increase the stats based on the luck bonus. If it does end up succeeding and being a ring of luck, then it can attempt to increase stats based on luck bonus.
+
+Adjust the movement chance. Get the distance from the mimic to the player - the view radius, and then take that result and get what percentage that is of the width of the map. Use that as the move chance. That way, if it's all the way across the map, it's 100% sure to move and the moving scales correctly as they get closer.
+
 ---
 
 ## 8. Controls & UI

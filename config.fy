@@ -25,6 +25,13 @@ C_WEAPON   = "\e[96m";
 C_EXIT     = "\e[93m";
 C_TRADER   = "\e[92m";
 
+# UI Colors
+C_WHITE    = "\e[97m";  # White for stat bar and messages
+C_GREEN    = "\e[92m";  # Green for XP
+C_RED      = "\e[91m";  # Red for depth
+C_YELLOW   = "\e[93m";  # Yellow for gold
+C_LIGHT_BLUE = "\e[94m";  # Light blue for level
+
 # Theme colors
 C_CAVES_WALL     = "\e[34m";  # dark blue (distinct from bright potion purple)
 C_CATACOMBS_WALL = "\e[37m";  # white (same as default)
@@ -34,6 +41,7 @@ C_FORGE_WALL     = "\e[33m";  # orange-yellow
 C_WATER          = "\e[36m";  # cyan for water tiles
 C_LAVA           = "\e[31m";  # red for lava tiles
 C_PILLAR         = "\e[90m";  # dark gray for pillars
+C_ITEM           = "\e[33m";  # yellow for items (including chests)
 
 # Equipment
 MAX_RING_SLOTS = 2;
