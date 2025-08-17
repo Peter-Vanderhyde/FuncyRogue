@@ -155,8 +155,19 @@ class Game {
                     # player on top
                     if x == &player.x and y == &player.y { ch = &player.glyph; }
 
-                    # visible tinting / colors
-                    ch = &applyColorVisibleTile(ch);
+                    # Color the tile based on what's on it
+                    if key in monsters_map {
+                        # Monster tile - check if it's a disguised mimic
+                        monster = &monsterAt(x, y);
+                        if monster and monster.hasAbility("disguise") and monster.disguised_as == "chest" {
+                            ch = C_YELLOW + ch + C_RESET; # Disguised mimic as yellow C
+                        } else {
+                            ch = C_MON + ch + C_RESET; # Regular monster as red
+                        }
+                    } else {
+                        # Non-monster tile - use the color function
+                        ch = &applyColorVisibleTile(ch);
+                    }
                 } else {
                     if &seen[y][x] {
                         if &grid[y][x] == "#" {
@@ -212,12 +223,9 @@ class Game {
             else { return C_WATER + "~" + C_RESET; }                   # cyan ~ for water
         }
         if ch == "|" { return C_PILLAR + "|" + C_RESET; } # pillar
-        # Monster letters (unique per type)
-        if ch == "M" or ch == "R" or ch == "B" or ch == "s" or ch == "G" or ch == "S" or ch == "Z" or ch == "N" or ch == "W" or ch == "D" or ch == "C" or ch == "F" or ch == "L" {
-            return C_MON + ch + C_RESET;
-        }
+        # Chests (real chests only - mimics are handled in render functions)
+        if ch == "C" { return C_YELLOW + "C" + C_RESET; }
         if ch == "T" { return C_TRADER + "T" + C_RESET; }
-        if ch == "C" { return C_ITEM + "C" + C_RESET; } # Chests (including disguised mimics)
         return ch;
     }
 
@@ -1134,8 +1142,17 @@ class Game {
                     # player on top
                     if x == &player.x and y == &player.y { ch = &player.glyph; }
 
-                    # visible tinting / colors
-                    ch = &applyColorVisibleTile(ch);
+                    # Color the tile based on what's on it
+                    if key in monsters_map {
+                        if ch == "C" {
+                            ch = C_YELLOW + ch + C_RESET;
+                        } else {
+                            ch = C_MON + ch + C_RESET;
+                        }
+                    } else {
+                        # Non-monster tile - use the color function
+                        ch = &applyColorVisibleTile(ch);
+                    }
                 } else {
                     if &seen[y][x] {
                         if &grid[y][x] == "#" {
@@ -1189,20 +1206,29 @@ class Game {
             if m.hasAbility("ranged") and (adx + ady) > 1 and (adx + ady) <= 6 {
                 ranged_ability = m.getAbility("ranged");
                 if (adx + ady) <= ranged_ability.range and randInt(1, 3) == 1 { # 33% chance to use ranged attack
-                    dmg = m.atk;
-                    red = &player.totalDef();
-                    dmg = dmg - red;
-                    if dmg < 1 { dmg = 1; }
-                    
-                    &player.hp = &player.hp - dmg;
-                    if &message == "" {
-                        &message = "The " + m.name + " shoots you for " + C_RED + str(dmg) + C_WHITE + "!";
+                    if &hasLineOfSight(m.x, m.y, &player.x, &player.y) { # Check if there's clear LOS
+                        dmg = m.atk;
+                        red = &player.totalDef();
+                        dmg = dmg - red;
+                        if dmg < 1 { dmg = 1; }
+                        
+                        &player.hp = &player.hp - dmg;
+                        if &message == "" {
+                            &message = "The " + m.name + " hits you from range for " + C_RED + str(dmg) + C_WHITE + "!";
+                        } else {
+                            &message = &message + " The " + m.name + " hits you from range for " + C_RED + str(dmg) + C_WHITE + "!";
+                        }
+                        if &player.hp <= 0 {
+                            &dead = true;
+                            return;
+                        }
                     } else {
-                        &message = &message + " The " + m.name + " shoots you for " + C_RED + str(dmg) + C_WHITE + "!";
-                    }
-                    if &player.hp <= 0 {
-                        &dead = true;
-                        return;
+                        # LOS blocked - monster can't attack from range
+                        if &message == "" {
+                            &message = "The " + m.name + " tries to attack from range but can't see you clearly.";
+                        } else {
+                            &message = &message + " The " + m.name + " tries to attack from range but can't see you clearly.";
+                        }
                     }
                     continue;
                 }
@@ -1234,7 +1260,7 @@ class Game {
             }
 
             # Check if monster is in player's view radius
-            in_view = (adx + ady) <= 6;
+            in_view = (adx + ady) <= FOV_RADIUS;
             
             # Handle summon ability for necromancers
             if m.hasAbility("summon") and in_view {
@@ -1264,16 +1290,31 @@ class Game {
                 }
             }
             
+            # Initialize movement variables
+            stepX = 0; stepY = 0;
+            
             # Handle disguised mimics: they don't move when in view, but can sneak around when hidden
             if m.hasAbility("disguise") and m.disguised_as != "" {
                 if in_view {
                     # In view: stay still like a real chest
                     continue;
                 } else {
-                    # Out of view: small chance to sneak around (15%)
-                    if randInt(1, 7) != 1 { continue; }
+                    # Out of view: calculate movement chance based on distance
+                    # Distance beyond view radius
+                    distance_beyond_view = (adx + ady) - FOV_RADIUS;
+                    if distance_beyond_view < 0 { distance_beyond_view = 0; }
+                    
+                    # Calculate movement chance as percentage of map width
+                    # This makes mimics move more when far away (to get closer faster)
+                    # and move less when close (to avoid being seen)
+                    movement_chance = (distance_beyond_view * 100) // MAP_W;
+                    if movement_chance > 100 { movement_chance = 100; } # Cap at 100%
+                    
+                    # Roll for movement based on calculated chance
+                    if randInt(1, 100) > movement_chance { continue; }
+                    
                     # When sneaking, mimics prefer to move towards the player's general direction
-                    if randInt(1, 3) == 1 { # 33% chance to be smart about it
+                    if randInt(1, 3) != 1 { # 33% chance to be smart about it
                         if adx >= ady {
                             if dx > 0 { stepX = 1; } elif dx < 0 { stepX = -1; }
                         } else {
@@ -1283,19 +1324,29 @@ class Game {
                     # Otherwise, they'll just wander randomly (handled by the normal movement logic below)
                 }
             }
-            # Note: Revealed mimics (disguised_as == "") move normally through the standard movement logic below
-
-            stepX = 0; stepY = 0;
-            if in_view and randInt(0,1) == 1 {
-                if adx >= ady {
+            
+            # Handle revealed mimics: they chase the player aggressively every turn
+            if m.hasAbility("disguise") and m.disguised_as == "" {
+                # Revealed mimic - chase player every turn!
+                if adx > ady {
                     if dx > 0 { stepX = 1; } elif dx < 0 { stepX = -1; }
-                } else {
+                } elif adx < ady {
                     if dy > 0 { stepY = 1; } elif dy < 0 { stepY = -1; }
                 }
+                # Continue to movement execution below
             } else {
-                dirs = [[1,0],[-1,0],[0,1],[0,-1],[0,0]];
-                d = randChoice(dirs);
-                stepX = d[0]; stepY = d[1];
+                # Regular monster movement logic
+                if in_view and randInt(0,1) == 1 {
+                    if adx >= ady {
+                        if dx > 0 { stepX = 1; } elif dx < 0 { stepX = -1; }
+                    } else {
+                        if dy > 0 { stepY = 1; } elif dy < 0 { stepY = -1; }
+                    }
+                } else {
+                    dirs = [[1,0],[-1,0],[0,1],[0,-1],[0,0]];
+                    d = randChoice(dirs);
+                    stepX = d[0]; stepY = d[1];
+                }
             }
 
             nx = m.x + stepX; ny = m.y + stepY;
@@ -1345,6 +1396,34 @@ class Game {
     }
     
     # ---------- INPUT-ACTION HELPERS ----------
+    
+    # Check if there's a clear line of sight between two points (for ranged attacks)
+    func &hasLineOfSight(x1, y1, x2, y2) {
+        # Only allow horizontal or vertical lines
+        if x1 != x2 and y1 != y2 { return false; }
+        
+        # Check horizontal line
+        if y1 == y2 {
+            start_x = x1; end_x = x2;
+            if start_x > end_x { start_x = x2; end_x = x1; }
+            for x = start_x + 1, x < end_x, x += 1 {
+                if &grid[y1][x] in ["#", "|"] { return false; } # Wall blocks LOS
+            }
+            return true;
+        }
+        
+        # Check vertical line
+        if x1 == x2 {
+            start_y = y1; end_y = y2;
+            if start_y > end_y { start_y = y2; end_y = y1; }
+            for y = start_y + 1, y < end_y, y += 1 {
+                if &grid[y][x1] == "#" { return false; } # Wall blocks LOS
+            }
+            return true;
+        }
+        
+        return false;
+    }
 
 
 
