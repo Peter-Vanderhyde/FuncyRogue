@@ -54,7 +54,7 @@ LEVEL_XP_SCALE = 5;
 XP_PER_KILL_BASE = 3;
 
 # Intro & UI
-INTRO_ENABLED = false;     # Set to true to play intro animation
+INTRO_ENABLED = true;     # Set to true to play intro animation
 
 # Economy & shops
 GOLD_START = 0;

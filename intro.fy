@@ -106,77 +106,69 @@ func glitchTitle() {
     }
 }
 
-# Spiral reveal effect
-func spiralReveal() {
-    # Create a spiral pattern that reveals the title
-    spiral_chars = ["╔", "═", "╗", "║", "╝", "═", "╚", "║"];
-    spiral_idx = 0;
+# Simple title presentation animation
+func simpleTitleReveal() {
+    title = "FUNCY ROGUE";
+    subtitle = "A Descent Into Procedural Madness";
     
-    for radius = 1, radius <= 8, radius += 1 {
-        spiral_frame = "";
-        
-        # Add empty lines to center
-        for i = 0, i < MAP_H // 3, i += 1 {
-            spiral_frame = spiral_frame + "\n";
+    # Center the title horizontally
+    title_spaces = "";
+    for i = 0, i < (MAP_W - length(title)) // 2, i += 1 {
+        title_spaces = title_spaces + " ";
+    }
+    
+    subtitle_spaces = "";
+    for i = 0, i < (MAP_W - length(subtitle)) // 2, i += 1 {
+        subtitle_spaces = subtitle_spaces + " ";
+    }
+    
+    # Start with empty screen
+    clearScreen();
+    
+    # Add some empty lines to center vertically
+    for i = 0, i < MAP_H // 3, i += 1 {
+        print("");
+    }
+    
+    # Reveal title character by character
+    for i = 0, i < length(title), i += 1 {
+        print("\e[H");  # Move cursor to top
+        # Re-print empty lines
+        for j = 0, j < MAP_H // 3, j += 1 {
+            print("");
         }
-        
-        # Create spiral border - smaller, more reasonable size
-        width = radius * 4 + 20;  # Start at 24, grow to 52
-        height = 6;  # Fixed height for title + subtitle
-        
-        # Top border
-        spiral_frame = spiral_frame + "  ";
-        for i = 0, i < width, i += 1 {
-            spiral_frame = spiral_frame + "=";
+        # Print title so far
+        current_title = "";
+        for k = 0, k <= i, k += 1 {
+            current_title = current_title + title[k];
         }
-        spiral_frame = spiral_frame + "\n";
-        
-        # Middle section with title and subtitle
-        for line = 0, line < height, line += 1 {
-            spiral_frame = spiral_frame + "  |";
-            if line == 2 {
-                # Center the main title
-                title = "FUNCY ROGUE";
-                title_spaces = "";
-                for i = 0, i < (width - length(title)) // 2, i += 1 {
-                    title_spaces = title_spaces + " ";
-                }
-                spiral_frame = spiral_frame + title_spaces + title;
-                # Fill remaining space
-                for i = 0, i < width - length(title) - length(title_spaces), i += 1 {
-                    spiral_frame = spiral_frame + " ";
-                }
-            } elif line == 3 {
-                # Center the subtitle
-                subtitle = "A Descent Into Procedural Madness";
-                subtitle_spaces = "";
-                for i = 0, i < (width - length(subtitle)) // 2, i += 1 {
-                    subtitle_spaces = subtitle_spaces + " ";
-                }
-                spiral_frame = spiral_frame + subtitle_spaces + subtitle;
-                # Fill remaining space
-                for i = 0, i < width - length(subtitle) - length(subtitle_spaces), i += 1 {
-                    spiral_frame = spiral_frame + " ";
-                }
-            } else {
-                # Empty lines
-                for i = 0, i < width, i += 1 {
-                    spiral_frame = spiral_frame + " ";
-                }
-            }
-            spiral_frame = spiral_frame + "|\n";
-        }
-        
-        # Bottom border
-        spiral_frame = spiral_frame + "  ";
-        for i = 0, i < width, i += 1 {
-            spiral_frame = spiral_frame + "=";
-        }
-        
-        clearScreen();
-        print(spiral_frame);
+        print(title_spaces + current_title);
         delayMs(150);
     }
+    
+    # Brief pause
+    delayMs(300);
+    
+    # Reveal subtitle character by character
+    for i = 0, i < length(subtitle), i += 1 {
+        print("\e[H");  # Move cursor to top
+        # Re-print empty lines
+        for j = 0, j < MAP_H // 3, j += 1 {
+            print("");
+        }
+        # Print full title
+        print(title_spaces + title);
+        # Print subtitle so far
+        current_subtitle = "";
+        for k = 0, k <= i, k += 1 {
+            current_subtitle = current_subtitle + subtitle[k];
+        }
+        print(subtitle_spaces + current_subtitle);
+        delayMs(100);
+    }
+    
+    # Final pause to show the complete title
+    delayMs(800);
 }
 
 # Simple intro sequence
@@ -188,16 +180,16 @@ func playIntro() {
         return;
     }
     
-    # Phase 1: Spiral reveal
+    # Phase 1: Simple title reveal
     clearScreen();
-    spiralReveal();
+    simpleTitleReveal();
     
     # Add a few empty lines after the title
     print("\n\n");
     
     # Show "Press Enter to light your torch..." message
     press_enter_msg = "Press Enter to light your torch...";
-    press_enter_x = (MAP_W - length(press_enter_msg)) // 3;
+    press_enter_x = (MAP_W - length(press_enter_msg)) // 2;
     press_enter_spaces = "";
     for i = 0, i < press_enter_x, i += 1 {
         press_enter_spaces = press_enter_spaces + " ";
@@ -208,25 +200,7 @@ func playIntro() {
     input("");
     
     # Phase 2: Screen wipe down effect from top of terminal
-    # Move cursor to top of terminal
-    print("\e[H");
-    
-    # Build one full-width blank line
-    blank = "";
-    for i = 0, i < MAP_W, i += 1 {
-        blank = blank + " ";
-    }
-    
-    # Print enough rows to "wipe" downward from top (similar to descending effect)
-    total = MAP_H + 1;   # a little extra for effect
-    for n = 0, n < total, n += 1 {
-        print(blank);
-        delayMs(50);
-    }
-    
-    # Pause after wipe
-    delayMs(800);
-    
-    # Final clear and start the game
+    # Note: This will be handled by the game's mapWipeEffect when the game starts
+    # Just clear the screen and continue
     clearScreen();
 }

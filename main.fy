@@ -16,19 +16,49 @@ func main() {
     
     # First render with torch lighting effect
     if g.first_render and INTRO_ENABLED {
-        g.renderWithTorchLighting();
+        g.renderWithTorchLighting(2, FOV_RADIUS, 2, 100);
     }
     
     while true {
-        g.render();
+        # Check if this is the first render (e.g., after leaving shop)
+        if g.first_render and INTRO_ENABLED {
+            g.renderWithTorchLighting(2, FOV_RADIUS, 2, 1);
+        } else {
+            g.render();
+        }
         cmd = input("[WASD]=move  f=pick  i=inv  r=stats  t=talk  v=toggle-fov  n=next  q=quit > ").strip();
         g.message = ""; # Clear message after each input
         key = "";
         if length(cmd) > 0 { key = cmd[0]; }
 
         if key == "q" or key == "Q" {
-            print("Goodbye!");
-            return;
+            print("");
+            print("Do you wish to extinguish your torch? (y/n)");
+            confirm = input("> ").strip().lower();
+            if confirm == "y" or confirm == "yes" {
+                if INTRO_ENABLED {
+                    # Play the reverse torch lighting effect
+                    g.renderWithTorchLighting(FOV_RADIUS, 2, -2, 1);
+                    
+                    # Show final dark state (just player)
+                    g.renderPlayerOnly();
+                    delayMs(500);
+                    
+                    # Wipe the map away
+                    g.mapWipeEffect();
+                    
+                    # Final goodbye message
+                    print("");
+                    print("The shadows of the dungeon claim you once more...");
+                    print("Your torch flickers and dies as you retreat to the surface.");
+                    print("");
+                    return;
+                } else {
+                    return;
+                }
+            }
+            # If they don't confirm, continue the game
+            continue;
         }
         if key == "i" or key == "I" { g.useInventory(); continue; }
         if key == "r" or key == "R" { g.showStats(); continue; }
@@ -48,7 +78,7 @@ func main() {
             
             # Show torch lighting effect for new level
             if g.first_render {
-                g.renderWithTorchLighting();
+                g.renderWithTorchLighting(2, FOV_RADIUS, 2, 1);
             }
             continue; 
         }

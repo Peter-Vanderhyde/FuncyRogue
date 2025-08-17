@@ -45,20 +45,148 @@ class Game {
 
     # ------------ UTILITIES ------------
 
-    # Render with torch lighting effect for first reveal
-    func &renderWithTorchLighting() {
-        # First, just show the player in darkness
-        &renderPlayerOnly();
+    # Render with torch lighting effect - can be used for both lighting up and extinguishing
+    func &renderWithTorchLighting(start_radius, end_radius, step, delay) {
+        # Gradually change the light radius from start to end
+        if step > 0 {
+            # Lighting up: increasing radius
+            # First, just show the player in darkness
+            &renderPlayerOnly();
+            delayMs(delay);
+            
+            for radius = start_radius, radius <= end_radius, radius += step {
+                &renderWithRadius(radius);
+                delayMs(delay);
+            }
+            
+            # Final render with full radius
+            &render();
+            &first_render = false;  # Mark that first render is complete
+        } else {
+            # Extinguishing: decreasing radius
+            
+            for radius = start_radius, radius >= end_radius, radius += step {
+                &renderWithRadius(radius);
+                delayMs(delay);
+            }
+            
+            # Final state: just player visible (don't render yet, let caller handle it)
+            delayMs(500);  # Pause to show the final dark state
+        }
+    }
+    
+    # Map wipe effect - gradually hide the map from top to bottom
+    func &mapWipeEffect() {
+        lines = [];
         
-        # Gradually light up the area, increasing radius each time
-        for radius = 2, radius <= FOV_RADIUS, radius += 2 {
-            &renderWithRadius(radius);
-            delayMs(300);  # Brief pause between each radius increase
+        # Build one full-width blank line
+        blank = "";
+        for i = 0, i < MAP_W, i += 1 {
+            blank = blank + " ";
+        }
+
+        total = MAP_H + 1;   # a little extra for effect
+        for n = 0, n < total, n += 1 {
+            lines.append(blank);
+            print("\e[H\n" + "\n".join(lines));
+            delayMs(50);
         }
         
-        # Final render with full FOV
-        &render();
-        &first_render = false;  # Mark that first render is complete
+        # Pause after wipe
+        delayMs(800);
+        print("\e[H\e[J");
+    }
+    
+    # Render current game state to string (for wipe effect)
+    func &renderToString() {
+        # Precompute quick lookup maps (O(entities))
+        items_map = {};        # key: "x,y" -> glyph
+        for i = 0, i < length(&items), i += 1 {
+            rec = &items[i];
+            key = str(rec["x"]) + "," + str(rec["y"]);
+            items_map[key] = rec["glyph"];
+        }
+        monsters_map = {};     # key: "x,y" -> glyph
+        for i = 0, i < length(&monsters), i += 1 {
+            m = &monsters[i];
+            key = str(m.x) + "," + str(m.y);
+            monsters_map[key] = m.glyph;
+        }
+
+        # Visibility: full if disabled; radius-only if enabled
+        vis = Null;
+        if &fov_enabled { vis = &computeVisibilityRadius(); }
+
+        # Cache exit coords for cheap compare
+        ex = &exit[0]; ey = &exit[1];
+
+        lines = [];
+        header = "== Funcy Roguelike :: " + &player.statsStr() + " ==";
+        lines.append(header);
+        if &message != "" { lines.append(C_WHITE + &message + C_RESET); }
+        else { lines.append(" "); }  # keep board from shifting
+
+        for y = 0, y < MAP_H, y += 1 {
+            row_chars = [];
+            for x = 0, x < MAP_W, x += 1 {
+                visible = true;
+                if &fov_enabled { visible = vis[y][x]; }
+                ch = " ";
+
+                if visible {
+                    &seen[y][x] = true;
+
+                    # base tile
+                    base = &grid[y][x];
+                    ch = base;
+
+                    key = str(x) + "," + str(y);
+                    if key in items_map { ch = items_map[key]; }
+                    if key in monsters_map { ch = monsters_map[key]; }
+
+                    # trader overlay
+                    if &trader {
+                        if x == &trader["x"] and y == &trader["y"] { ch = "T"; }
+                    }
+
+                    # player on top
+                    if x == &player.x and y == &player.y { ch = &player.glyph; }
+
+                    # Color the tile based on what's on it
+                    if key in monsters_map {
+                        if ch == "C" {
+                            ch = C_YELLOW + ch + C_RESET;
+                        } else {
+                            ch = C_MON + ch + C_RESET;
+                        }
+                    } else {
+                        # Non-monster tile - use the color function
+                        ch = &applyColorVisibleTile(ch);
+                    }
+                } else {
+                    if &seen[y][x] {
+                        if &grid[y][x] == "#" {
+                            ch = "#";
+                            if &color_enabled { 
+                                # Remembered walls use dimmed gray, not theme colors
+                                ch = C_WALL_DIM + ch + C_RESET;
+                            }
+                        } elif x == ex and y == ey {
+                            ch = ">";
+                            if &color_enabled { ch = C_EXIT + ch + C_RESET; }
+                        } else {
+                            ch = " ";
+                        }
+                    } else {
+                        ch = " ";
+                    }
+                }
+                row_chars.append(ch);
+            }
+            lines.append("".join(row_chars));
+        }
+        
+        return "\n".join(lines);
     }
     
     # Render only the player tile (everything else is dark)
@@ -1267,6 +1395,7 @@ class Game {
                 summon_ability = m.getAbility("summon");
                 if summon_ability.canSummon() and randInt(1, 10) == 1 { # 10% chance per turn when in view
                     # Find a free adjacent tile to spawn the summoned monster
+                    summoned = Null;  # Declare the variable first
                     for dx2 = -1, dx2 <= 1, dx2 += 1 {
                         for dy2 = -1, dy2 <= 1, dy2 += 1 {
                             if dx2 == 0 and dy2 == 0 { continue; } # Skip the center
@@ -1477,18 +1606,7 @@ class Game {
     # ---------- TRANSITION FX ----------
 
     func &depthTransition(newDepth) {
-        # Go to top-left and clear screen
-        print("\e[H");
-
-        # Build one full-width blank line
-        blank = "";
-        for i = 0, i < MAP_W, i += 1 { blank = blank + " "; }
-
-        # Print enough rows to "wipe" downward
-        total = MAP_H + 1;   # a little extra for effect
-        for n = 0, n < total, n += 1 {
-            print(blank);
-            delayMs(50);
-        }
+        # Use the map wipe effect for level transitions
+        &mapWipeEffect();
     }
 }
